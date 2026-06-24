@@ -2,8 +2,7 @@
    PSD Animator — Design System (Dark Premium)
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ─── Fonts & Reset ──────────────────────────────────────────────── */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
 
 *,
 *::before,
@@ -1304,28 +1303,53 @@ input, select {
 }
 
 @media (max-width: 700px) {
+  .editor-topbar-left,
+  .editor-topbar-right {
+    min-width: auto;
+  }
+
+  .editor-dims,
+  .layer-badge {
+    display: none;
+  }
+
+  .editor-filename {
+    max-width: 90px;
+  }
+
   .editor-layout {
     flex-direction: column;
     overflow-y: auto;
-    height: auto;
-  }
-
-  .editor-sidebar,
-  .editor-export {
-    width: 100%;
-    max-height: none;
-    border-right: none;
-    border-left: none;
-    border-bottom: 1px solid var(--border);
+    flex: 1;
   }
 
   .editor-main {
-    min-height: 50vw;
-    padding: 16px;
+    order: 1;
+    min-height: auto;
+    padding: 24px 16px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+
+  .editor-sidebar {
+    order: 2;
+    width: 100%;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+
+  .editor-export {
+    order: 3;
+    width: 100%;
+    max-height: none;
+    border-left: none;
+    flex: none;
   }
 
   .studio-editor {
-    height: auto;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
   }
 }

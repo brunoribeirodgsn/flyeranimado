@@ -196,6 +196,7 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
     const pausedAtRef = useRef<number>(0);
     const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
     const [currentTime, setCurrentTime] = useState(0);
+    const [imagesLoaded, setImagesLoaded] = useState(false);
     const totalMs = duration * 1000;
 
     // Expose canvas for export
@@ -206,20 +207,35 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
 
     // Pre-load all layer images
     useEffect(() => {
-      imagesRef.current.clear();
+      setImagesLoaded(false);
+      let active = true;
       const promises = doc.layers.map(
         (layer) =>
           new Promise<void>((resolve) => {
             const img = new Image();
             img.onload = () => {
-              imagesRef.current.set(layer.id, img);
+              if (active) imagesRef.current.set(layer.id, img);
               resolve();
             };
             img.onerror = () => resolve();
             img.src = layer.imageData;
           })
       );
-      Promise.all(promises);
+      Promise.all(promises).then(() => {
+        if (active) {
+          // Clean up old layers
+          const currentIds = new Set(doc.layers.map((l) => l.id));
+          for (const key of imagesRef.current.keys()) {
+            if (!currentIds.has(key)) {
+              imagesRef.current.delete(key);
+            }
+          }
+          setImagesLoaded(true);
+        }
+      });
+      return () => {
+        active = false;
+      };
     }, [doc]);
 
     // Render a single frame
@@ -246,6 +262,8 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
 
     // Animation loop
     useEffect(() => {
+      if (!imagesLoaded) return;
+
       if (!isPlaying) {
         cancelAnimationFrame(rafRef.current);
         renderFrame(pausedAtRef.current);
@@ -265,32 +283,37 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
 
       rafRef.current = requestAnimationFrame(loop);
       return () => cancelAnimationFrame(rafRef.current);
-    }, [isPlaying, renderFrame, totalMs]);
+    }, [isPlaying, renderFrame, totalMs, imagesLoaded]);
 
-    // Initial render
+    // Initial render / when doc changes
     useEffect(() => {
-      renderFrame(0);
-      pausedAtRef.current = 0;
-      setCurrentTime(0);
-    }, [doc, renderFrame]);
+      if (imagesLoaded) {
+        renderFrame(0);
+        pausedAtRef.current = 0;
+        setCurrentTime(0);
+      }
+    }, [imagesLoaded, doc, renderFrame]);
 
     // Canvas dimensions: fit inside container while keeping aspect ratio
     const maxW = 640;
-    const aspect = doc.width / doc.height;
-    const canvasW = Math.min(doc.width, maxW);
-    const canvasH = Math.round(canvasW / aspect);
-
     const progress = (currentTime / duration) * 100;
 
     return (
       <div className="preview-wrapper">
         {/* Canvas */}
-        <div className="preview-canvas-wrap" style={{ aspectRatio: `${doc.width}/${doc.height}` }}>
+        <div
+          className="preview-canvas-wrap"
+          style={{
+            aspectRatio: `${doc.width}/${doc.height}`,
+            width: "100%",
+            maxWidth: Math.min(doc.width, maxW),
+          }}
+        >
           <canvas
             ref={canvasRef}
             width={doc.width}
             height={doc.height}
-            style={{ width: canvasW, height: canvasH, maxWidth: "100%" }}
+            style={{ width: "100%", height: "100%", display: "block" }}
             className="preview-canvas"
             aria-label="Preview da animação do flyer"
           />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PsdDocument, PsdLayer } from "@/types/psd";
 import type { GeminiAnalysisResponse } from "@/types/psd";
 import PsdUploader from "./PsdUploader";
@@ -24,6 +24,51 @@ export default function PsdStudio() {
   // Check if API key is configured (we do a lightweight check via a param)
   // The actual check happens server-side; we assume it's configured unless told otherwise
   const [hasApiKey, setHasApiKey] = useState(true);
+
+  // For debugging / development layout
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("mock=true")) {
+      setPsdDoc({
+        width: 1080,
+        height: 1920,
+        fileName: "flyer_evento_mock.psd",
+        aspectRatio: 1080 / 1920,
+        layers: [
+          {
+            id: "bg",
+            name: "Background",
+            visible: true,
+            x: 0,
+            y: 0,
+            width: 1080,
+            height: 1920,
+            opacity: 1,
+            imageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88eLFfwAJtQOxz615pAAAAABJRU5ErkJggg==",
+            thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88eLFfwAJtQOxz615pAAAAABJRU5ErkJggg==",
+            isGroup: false,
+            order: 0,
+            animation: { type: "fade-in", delay: 0, duration: 1500, easing: "ease-out", hold: true }
+          },
+          {
+            id: "title",
+            name: "Título Principal",
+            visible: true,
+            x: 100,
+            y: 400,
+            width: 880,
+            height: 200,
+            opacity: 1,
+            imageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            isGroup: false,
+            order: 1,
+            animation: { type: "slide-up", delay: 500, duration: 800, easing: "spring", hold: true }
+          }
+        ]
+      });
+      setStep("editor");
+    }
+  }, []);
 
   const handleDocumentLoaded = useCallback((doc: PsdDocument) => {
     setPsdDoc(doc);
