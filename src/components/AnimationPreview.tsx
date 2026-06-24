@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from "react";
 import type { PsdDocument, PsdLayer, AnimationType, EasingType } from "@/types/psd";
+import { getLayerCanvas } from "@/lib/layerPixelStore";
 
 // ─── Easing functions ────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function easingFn(type: EasingType, t: number): number {
 function applyAnimation(
   ctx: CanvasRenderingContext2D,
   layer: PsdLayer,
-  img: HTMLImageElement,
+  img: HTMLCanvasElement,
   elapsed: number,
   totalMs: number
 ) {
@@ -194,9 +195,7 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
     const rafRef = useRef<number>(0);
     const startTimeRef = useRef<number>(0);
     const pausedAtRef = useRef<number>(0);
-    const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
     const [currentTime, setCurrentTime] = useState(0);
-    const [imagesLoaded, setImagesLoaded] = useState(false);
     const totalMs = duration * 1000;
 
     // Expose canvas for export
@@ -205,43 +204,10 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
       getDuration: () => duration,
     }));
 
-    // Pre-load layer images from imageData URLs (reliable, works for all PSDs)
-    useEffect(() => {
-      setImagesLoaded(false);
-      let active = true;
-      const promises = doc.layers
-        .filter((l) => l.imageData)  // skip layers without pixel data
-        .map(
-          (layer) =>
-            new Promise<void>((resolve) => {
-              const img = new Image();
-              img.onload = () => {
-                if (active) imagesRef.current.set(layer.id, img);
-                resolve();
-              };
-              img.onerror = (e) => {
-                console.error(`Error preloading layer "${layer.name}":`, e);
-                resolve();
-              };
-              img.src = layer.imageData;
-            })
-        );
-      Promise.all(promises).then(() => {
-        if (active) {
-          // Clean up stale entries
-          const currentIds = new Set(doc.layers.map((l) => l.id));
-          for (const key of imagesRef.current.keys()) {
-            if (!currentIds.has(key)) imagesRef.current.delete(key);
-          }
-          setImagesLoaded(true);
-        }
-      });
-      return () => {
-        active = false;
-      };
-    }, [doc]);
+    // No async image loading needed — pixel data lives in layerPixelStore (HTMLCanvasElement).
+    // We mark ready immediately and re-render when doc changes.
 
-    // Render a single frame
+    // Render a single frame — reads canvases directly from layerPixelStore
     const renderFrame = useCallback(
       (elapsed: number) => {
         const canvas = canvasRef.current;
@@ -255,9 +221,12 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          const img = imagesRef.current.get(layer.id);
-          if (!img) continue;
-          applyAnimation(ctx, layer, img, elapsed, totalMs);
+          const src = getLayerCanvas(layer.id);
+          if (!src) {
+            console.warn(`[Preview] no canvas for layer "${layer.name}" (${layer.id})`);
+            continue;
+          }
+          applyAnimation(ctx, layer, src, elapsed, totalMs);
         }
       },
       [doc, totalMs]
@@ -265,8 +234,6 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
 
     // Animation loop
     useEffect(() => {
-      if (!imagesLoaded) return;
-
       if (!isPlaying) {
         cancelAnimationFrame(rafRef.current);
         renderFrame(pausedAtRef.current);
@@ -286,16 +253,14 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
 
       rafRef.current = requestAnimationFrame(loop);
       return () => cancelAnimationFrame(rafRef.current);
-    }, [isPlaying, renderFrame, totalMs, imagesLoaded]);
+    }, [isPlaying, renderFrame, totalMs]);
 
     // Initial render / when doc changes
     useEffect(() => {
-      if (imagesLoaded) {
-        renderFrame(0);
-        pausedAtRef.current = 0;
-        setCurrentTime(0);
-      }
-    }, [imagesLoaded, doc, renderFrame]);
+      renderFrame(0);
+      pausedAtRef.current = 0;
+      setCurrentTime(0);
+    }, [doc, renderFrame]);
 
     // Canvas dimensions: fit inside container while keeping aspect ratio
     const maxW = 640;

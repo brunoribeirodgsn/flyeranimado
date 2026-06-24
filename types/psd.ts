@@ -43,14 +43,16 @@ export interface PsdLayer {
   width: number;
   height: number;
   opacity: number;     // 0–1
-  imageData: string;   // base64 PNG da camada
+  /**
+   * Small thumbnail (max 120px, base64 PNG) for the layer list UI.
+   * Full-resolution pixel data lives in src/lib/layerPixelStore.ts
+   * (a client-only module) to keep React state lightweight.
+   */
+  thumbnail: string;
   isGroup: boolean;
   order: number;       // índice (0 = mais abaixo)
   blendMode?: string;
   animation: AnimationConfig;
-  // thumbnail gerado pelo sistema
-  thumbnail?: string;  // base64 PNG reduzido
-  canvas?: any;
 }
 
 // ─── PSD Document ────────────────────────────────────────────────────────────

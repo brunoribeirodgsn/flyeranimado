@@ -29,7 +29,7 @@ function easingFn(type: EasingType, t: number): number {
 export function renderExportFrame(
   ctx: CanvasRenderingContext2D,
   layer: PsdLayer,
-  img: HTMLImageElement,
+  img: HTMLCanvasElement,
   elapsed: number,
   totalMs: number,
   scaleX: number,

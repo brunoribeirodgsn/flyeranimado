@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { PsdDocument, OutputFormat, OutputQuality } from "@/types/psd";
 import { FORMAT_DIMENSIONS } from "@/types/psd";
+import { getLayerCanvas } from "@/lib/layerPixelStore";
 import type { AnimationPreviewHandle } from "./AnimationPreview";
 
 interface Props {
@@ -58,27 +59,8 @@ export default function ExportPanel({
       exportCanvas.height = exportH;
       const ctx = exportCanvas.getContext("2d")!;
 
-      // ── 2. Pre-load images from imageData URLs ──
-      const imageMap = new Map<string, HTMLImageElement>();
-      await Promise.all(
-        doc.layers
-          .filter((l) => l.imageData)
-          .map(
-            (layer) =>
-              new Promise<void>((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                  imageMap.set(layer.id, img);
-                  resolve();
-                };
-                img.onerror = (e) => {
-                  console.error(`Error loading layer "${layer.name}" for export:`, e);
-                  resolve();
-                };
-                img.src = layer.imageData;
-              })
-          )
-      );
+      // ── 2. Layer canvases come from layerPixelStore — no async loading needed ──
+      // (full-res HTMLCanvasElement objects stored there by PsdUploader)
 
       // ── 3. Setup MediaRecorder ────────────────────────────────────────────
       const fps = 30;
@@ -144,9 +126,9 @@ export default function ExportPanel({
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          const img = imageMap.get(layer.id);
-          if (!img) continue;
-          renderExportFrame(ctx, layer, img, elapsed % totalMs, totalMs, scaleX, scaleY);
+          const src = getLayerCanvas(layer.id);
+          if (!src) continue;
+          renderExportFrame(ctx, layer, src, elapsed % totalMs, totalMs, scaleX, scaleY);
         }
 
         if (prog < 1) {

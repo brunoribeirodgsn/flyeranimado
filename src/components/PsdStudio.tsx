@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PsdDocument, PsdLayer } from "@/types/psd";
 import type { GeminiAnalysisResponse } from "@/types/psd";
+import { storeLayerCanvas, clearLayerPixelStore } from "@/lib/layerPixelStore";
 import PsdUploader from "./PsdUploader";
 import LayerPanel from "./LayerPanel";
 import AnimationPreview from "./AnimationPreview";
@@ -25,20 +26,33 @@ export default function PsdStudio() {
   // The actual check happens server-side; we assume it's configured unless told otherwise
   const [hasApiKey, setHasApiKey] = useState(true);
 
-  // For debugging / development layout
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("mock=true")) {
-      const createMockCanvas = (color: string, w: number, h: number) => {
-        const canvas = window.document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = color;
-          ctx.fillRect(0, 0, w, h);
-        }
-        return canvas;
+      clearLayerPixelStore();
+
+      const mkCanvas = (color: string, w: number, h: number) => {
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const ctx = c.getContext("2d");
+        if (ctx) { ctx.fillStyle = color; ctx.fillRect(0, 0, w, h); }
+        return c;
       };
+
+      const mkThumb = (canvas: HTMLCanvasElement, size = 120) => {
+        const scale = Math.min(size / canvas.width, size / canvas.height, 1);
+        const tw = Math.round(canvas.width * scale);
+        const th = Math.round(canvas.height * scale);
+        const t = document.createElement("canvas");
+        t.width = tw; t.height = th;
+        t.getContext("2d")?.drawImage(canvas, 0, 0, tw, th);
+        return t.toDataURL("image/png");
+      };
+
+      const bgCanvas   = mkCanvas("#cccccc", 1080, 1920);
+      const titleCanvas = mkCanvas("#ef4444",  880,  200);
+
+      storeLayerCanvas("bg",    bgCanvas);
+      storeLayerCanvas("title", titleCanvas);
 
       setPsdDoc({
         width: 1080,
@@ -50,35 +64,25 @@ export default function PsdStudio() {
             id: "bg",
             name: "Background",
             visible: true,
-            x: 0,
-            y: 0,
-            width: 1080,
-            height: 1920,
+            x: 0, y: 0,
+            width: 1080, height: 1920,
             opacity: 1,
-            imageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88eLFfwAJtQOxz615pAAAAABJRU5ErkJggg==",
-            thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88eLFfwAJtQOxz615pAAAAABJRU5ErkJggg==",
-            isGroup: false,
-            order: 0,
+            thumbnail: mkThumb(bgCanvas),
+            isGroup: false, order: 0,
             animation: { type: "fade-in", delay: 0, duration: 1500, easing: "ease-out", hold: true },
-            canvas: createMockCanvas("#cccccc", 1080, 1920),
           },
           {
             id: "title",
             name: "Título Principal",
             visible: true,
-            x: 100,
-            y: 400,
-            width: 880,
-            height: 200,
+            x: 100, y: 400,
+            width: 880, height: 200,
             opacity: 1,
-            imageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-            thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-            isGroup: false,
-            order: 1,
+            thumbnail: mkThumb(titleCanvas),
+            isGroup: false, order: 1,
             animation: { type: "slide-up", delay: 500, duration: 800, easing: "spring", hold: true },
-            canvas: createMockCanvas("#ef4444", 880, 200),
-          }
-        ]
+          },
+        ],
       });
       setStep("editor");
     }
