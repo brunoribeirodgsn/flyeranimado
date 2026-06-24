@@ -28,6 +28,18 @@ export default function PsdStudio() {
   // For debugging / development layout
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("mock=true")) {
+      const createMockCanvas = (color: string, w: number, h: number) => {
+        const canvas = window.document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, w, h);
+        }
+        return canvas;
+      };
+
       setPsdDoc({
         width: 1080,
         height: 1920,
@@ -47,7 +59,8 @@ export default function PsdStudio() {
             thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88eLFfwAJtQOxz615pAAAAABJRU5ErkJggg==",
             isGroup: false,
             order: 0,
-            animation: { type: "fade-in", delay: 0, duration: 1500, easing: "ease-out", hold: true }
+            animation: { type: "fade-in", delay: 0, duration: 1500, easing: "ease-out", hold: true },
+            canvas: createMockCanvas("#cccccc", 1080, 1920),
           },
           {
             id: "title",
@@ -62,7 +75,8 @@ export default function PsdStudio() {
             thumbnail: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
             isGroup: false,
             order: 1,
-            animation: { type: "slide-up", delay: 500, duration: 800, easing: "spring", hold: true }
+            animation: { type: "slide-up", delay: 500, duration: 800, easing: "spring", hold: true },
+            canvas: createMockCanvas("#ef4444", 880, 200),
           }
         ]
       });

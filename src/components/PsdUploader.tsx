@@ -65,6 +65,7 @@ function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
         order: result.length,
         blendMode: child.blendMode,
         animation: { ...DEFAULT_ANIMATION },
+        canvas: child.canvas,
       };
       result.push(layer);
     } else if (isGroup && child.children) {

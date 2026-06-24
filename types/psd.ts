@@ -50,6 +50,7 @@ export interface PsdLayer {
   animation: AnimationConfig;
   // thumbnail gerado pelo sistema
   thumbnail?: string;  // base64 PNG reduzido
+  canvas?: any;
 }
 
 // ─── PSD Document ────────────────────────────────────────────────────────────

@@ -33,7 +33,7 @@ function easingFn(type: EasingType, t: number): number {
 function applyAnimation(
   ctx: CanvasRenderingContext2D,
   layer: PsdLayer,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   elapsed: number,
   totalMs: number
 ) {
@@ -205,11 +205,17 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
       getDuration: () => duration,
     }));
 
-    // Pre-load all layer images
+    // Pre-load layer images (only those that DO NOT have in-memory canvas objects)
     useEffect(() => {
+      const layersToLoad = doc.layers.filter((l) => !l.canvas && l.imageData);
+      if (layersToLoad.length === 0) {
+        setImagesLoaded(true);
+        return;
+      }
+
       setImagesLoaded(false);
       let active = true;
-      const promises = doc.layers.map(
+      const promises = layersToLoad.map(
         (layer) =>
           new Promise<void>((resolve) => {
             const img = new Image();
@@ -217,7 +223,10 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
               if (active) imagesRef.current.set(layer.id, img);
               resolve();
             };
-            img.onerror = () => resolve();
+            img.onerror = (e) => {
+              console.error(`Error preloading image for layer ${layer.name}:`, e);
+              resolve();
+            };
             img.src = layer.imageData;
           })
       );
@@ -252,9 +261,12 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          const img = imagesRef.current.get(layer.id);
-          if (!img) continue;
-          applyAnimation(ctx, layer, img, elapsed, totalMs);
+          
+          // Use in-memory canvas first, fallback to preloaded Image
+          const source = layer.canvas || imagesRef.current.get(layer.id);
+          if (!source) continue;
+          
+          applyAnimation(ctx, layer, source, elapsed, totalMs);
         }
       },
       [doc, totalMs]

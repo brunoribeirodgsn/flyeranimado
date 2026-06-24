@@ -58,15 +58,22 @@ export default function ExportPanel({
       exportCanvas.height = exportH;
       const ctx = exportCanvas.getContext("2d")!;
 
-      // ── 2. Pre-load images ────────────────────────────────────────────────
+      // ── 2. Pre-load images (only those that DO NOT have in-memory canvas objects) ──
       const imageMap = new Map<string, HTMLImageElement>();
+      const layersToLoad = doc.layers.filter((l) => !l.canvas && l.imageData);
       await Promise.all(
-        doc.layers.map(
+        layersToLoad.map(
           (layer) =>
             new Promise<void>((resolve) => {
               const img = new Image();
-              img.onload = () => { imageMap.set(layer.id, img); resolve(); };
-              img.onerror = () => resolve();
+              img.onload = () => {
+                imageMap.set(layer.id, img);
+                resolve();
+              };
+              img.onerror = (e) => {
+                console.error(`Error loading image for layer ${layer.name} during export:`, e);
+                resolve();
+              };
               img.src = layer.imageData;
             })
         )
@@ -136,9 +143,9 @@ export default function ExportPanel({
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          const img = imageMap.get(layer.id);
-          if (!img) continue;
-          renderExportFrame(ctx, layer, img, elapsed % totalMs, totalMs, scaleX, scaleY);
+          const source = layer.canvas || imageMap.get(layer.id);
+          if (!source) continue;
+          renderExportFrame(ctx, layer, source, elapsed % totalMs, totalMs, scaleX, scaleY);
         }
 
         if (prog < 1) {
