@@ -8,6 +8,7 @@ import { DEFAULT_ANIMATION } from "@/types/psd";
 interface PsdReadResult {
   width: number;
   height: number;
+  colorMode?: number; // 3 = RGB, 4 = CMYK, etc.
   children?: PsdChild[];
 }
 
@@ -26,6 +27,23 @@ interface PsdChild {
 
 let layerCounter = 0;
 
+/**
+ * Converts any canvas (including CMYK-corrupted) to a clean RGBA PNG data URL.
+ * The secret: draw into a NEW canvas via drawImage() — the browser normalises
+ * premultiplied alpha and CMYK channel mis-ordering in one step.
+ */
+function canvasToCleanPng(src: HTMLCanvasElement): string {
+  const clean = document.createElement("canvas");
+  clean.width = src.width;
+  clean.height = src.height;
+  const ctx = clean.getContext("2d");
+  if (!ctx) return src.toDataURL("image/png");
+  // clearRect ensures a transparent background before compositing
+  ctx.clearRect(0, 0, clean.width, clean.height);
+  ctx.drawImage(src, 0, 0);
+  return clean.toDataURL("image/png");
+}
+
 function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
   const result: PsdLayer[] = [];
   for (const child of children) {
@@ -39,7 +57,10 @@ function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
 
       if (w === 0 || h === 0) continue;
 
-      // Gera thumbnail pequeno (max 120px)
+      // Gera PNG via canvas limpo (corrige CMYK e premultiplied alpha)
+      const imageData = canvasToCleanPng(canvas);
+
+      // Gera thumbnail pequeno (max 120px) também via canvas limpo
       const thumbSize = 120;
       const scale = Math.min(thumbSize / w, thumbSize / h, 1);
       const tw = Math.round(w * scale);
@@ -48,7 +69,11 @@ function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
       thumbCanvas.width = tw;
       thumbCanvas.height = th;
       const tctx = thumbCanvas.getContext("2d");
-      tctx?.drawImage(canvas, 0, 0, tw, th);
+      if (tctx) {
+        tctx.clearRect(0, 0, tw, th);
+        tctx.drawImage(canvas, 0, 0, tw, th);
+      }
+      const thumbnail = thumbCanvas.toDataURL("image/png");
 
       const layer: PsdLayer = {
         id: `layer_${++layerCounter}_${Date.now()}`,
@@ -59,13 +84,14 @@ function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
         width: w,
         height: h,
         opacity: (child.opacity ?? 255) / 255,
-        imageData: canvas.toDataURL("image/png"),
-        thumbnail: thumbCanvas.toDataURL("image/png"),
+        imageData,
+        thumbnail,
         isGroup: false,
         order: result.length,
         blendMode: child.blendMode,
         animation: { ...DEFAULT_ANIMATION },
-        canvas: child.canvas,
+        // NOTE: NÃO guardamos child.canvas no state — objetos DOM não devem
+        // ficar no state do React pois são mutáveis e se perdem após re-renders.
       };
       result.push(layer);
     } else if (isGroup && child.children) {
@@ -101,13 +127,26 @@ export default function PsdUploader({ onDocumentLoaded, isLoading, setIsLoading 
         const buffer = await file.arrayBuffer();
         setProgress("Decodificando camadas...");
 
-        // importação dinâmica do ag-psd (evita SSR issues)
+        // Importação dinâmica do ag-psd (evita SSR issues)
         const { readPsd } = await import("ag-psd");
+
+        // useImageData: false → ag-psd usa canvas (necessário para extrair pixels)
         const psd = readPsd(buffer, { useImageData: false }) as PsdReadResult;
+
+        // Detecta modo de cor não-RGB (CMYK = 4, LAB = 9, etc.)
+        // ag-psd ainda renderiza em canvas mas as cores podem sair erradas em CMYK
+        const isCmyk = psd.colorMode === 4;
+        if (isCmyk) {
+          setError(
+            "⚠️ Seu PSD está em modo CMYK. As cores podem aparecer distorcidas. " +
+            "Para resultado perfeito: Photoshop → Imagem → Modo → Cores RGB, depois salve e tente novamente."
+          );
+          // Continuamos mesmo assim — melhor ter cores levemente erradas do que não funcionar
+        }
 
         setProgress("Extraindo imagens das camadas...");
         const rawLayers = flattenLayers(psd.children ?? []);
-        // reverte para ordem visual correta (topo da pilha = último no array = renderizado por cima)
+        // Reverte para ordem visual correta (topo da pilha = último = renderizado por cima)
         const layers = rawLayers.reverse().map((l, i) => ({ ...l, order: i }));
 
         if (layers.length === 0) {

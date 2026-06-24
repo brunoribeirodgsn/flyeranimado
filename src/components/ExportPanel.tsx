@@ -58,25 +58,26 @@ export default function ExportPanel({
       exportCanvas.height = exportH;
       const ctx = exportCanvas.getContext("2d")!;
 
-      // ── 2. Pre-load images (only those that DO NOT have in-memory canvas objects) ──
+      // ── 2. Pre-load images from imageData URLs ──
       const imageMap = new Map<string, HTMLImageElement>();
-      const layersToLoad = doc.layers.filter((l) => !l.canvas && l.imageData);
       await Promise.all(
-        layersToLoad.map(
-          (layer) =>
-            new Promise<void>((resolve) => {
-              const img = new Image();
-              img.onload = () => {
-                imageMap.set(layer.id, img);
-                resolve();
-              };
-              img.onerror = (e) => {
-                console.error(`Error loading image for layer ${layer.name} during export:`, e);
-                resolve();
-              };
-              img.src = layer.imageData;
-            })
-        )
+        doc.layers
+          .filter((l) => l.imageData)
+          .map(
+            (layer) =>
+              new Promise<void>((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                  imageMap.set(layer.id, img);
+                  resolve();
+                };
+                img.onerror = (e) => {
+                  console.error(`Error loading layer "${layer.name}" for export:`, e);
+                  resolve();
+                };
+                img.src = layer.imageData;
+              })
+          )
       );
 
       // ── 3. Setup MediaRecorder ────────────────────────────────────────────
@@ -143,9 +144,9 @@ export default function ExportPanel({
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          const source = layer.canvas || imageMap.get(layer.id);
-          if (!source) continue;
-          renderExportFrame(ctx, layer, source, elapsed % totalMs, totalMs, scaleX, scaleY);
+          const img = imageMap.get(layer.id);
+          if (!img) continue;
+          renderExportFrame(ctx, layer, img, elapsed % totalMs, totalMs, scaleX, scaleY);
         }
 
         if (prog < 1) {

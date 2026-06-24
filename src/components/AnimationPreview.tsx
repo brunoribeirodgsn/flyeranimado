@@ -33,7 +33,7 @@ function easingFn(type: EasingType, t: number): number {
 function applyAnimation(
   ctx: CanvasRenderingContext2D,
   layer: PsdLayer,
-  img: HTMLImageElement | HTMLCanvasElement,
+  img: HTMLImageElement,
   elapsed: number,
   totalMs: number
 ) {
@@ -205,39 +205,33 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
       getDuration: () => duration,
     }));
 
-    // Pre-load layer images (only those that DO NOT have in-memory canvas objects)
+    // Pre-load layer images from imageData URLs (reliable, works for all PSDs)
     useEffect(() => {
-      const layersToLoad = doc.layers.filter((l) => !l.canvas && l.imageData);
-      if (layersToLoad.length === 0) {
-        setImagesLoaded(true);
-        return;
-      }
-
       setImagesLoaded(false);
       let active = true;
-      const promises = layersToLoad.map(
-        (layer) =>
-          new Promise<void>((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              if (active) imagesRef.current.set(layer.id, img);
-              resolve();
-            };
-            img.onerror = (e) => {
-              console.error(`Error preloading image for layer ${layer.name}:`, e);
-              resolve();
-            };
-            img.src = layer.imageData;
-          })
-      );
+      const promises = doc.layers
+        .filter((l) => l.imageData)  // skip layers without pixel data
+        .map(
+          (layer) =>
+            new Promise<void>((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                if (active) imagesRef.current.set(layer.id, img);
+                resolve();
+              };
+              img.onerror = (e) => {
+                console.error(`Error preloading layer "${layer.name}":`, e);
+                resolve();
+              };
+              img.src = layer.imageData;
+            })
+        );
       Promise.all(promises).then(() => {
         if (active) {
-          // Clean up old layers
+          // Clean up stale entries
           const currentIds = new Set(doc.layers.map((l) => l.id));
           for (const key of imagesRef.current.keys()) {
-            if (!currentIds.has(key)) {
-              imagesRef.current.delete(key);
-            }
+            if (!currentIds.has(key)) imagesRef.current.delete(key);
           }
           setImagesLoaded(true);
         }
@@ -261,12 +255,9 @@ const AnimationPreview = forwardRef<AnimationPreviewHandle, Props>(
         const sorted = [...doc.layers].sort((a, b) => a.order - b.order);
         for (const layer of sorted) {
           if (!layer.visible) continue;
-          
-          // Use in-memory canvas first, fallback to preloaded Image
-          const source = layer.canvas || imagesRef.current.get(layer.id);
-          if (!source) continue;
-          
-          applyAnimation(ctx, layer, source, elapsed, totalMs);
+          const img = imagesRef.current.get(layer.id);
+          if (!img) continue;
+          applyAnimation(ctx, layer, img, elapsed, totalMs);
         }
       },
       [doc, totalMs]
