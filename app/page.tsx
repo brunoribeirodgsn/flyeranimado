@@ -1,4 +1,4 @@
-import PsdStudio from "@/src/components/PsdStudio";
+import PsdStudio from "@/components/PsdStudio";
 
 export default function Home() {
   return <PsdStudio />;

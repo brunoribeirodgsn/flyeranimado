@@ -169,11 +169,10 @@ export default function PsdUploader({
         // Importação dinâmica do ag-psd (evita SSR issues)
         const { readPsd } = await import("ag-psd");
 
-        // useImageData: true → dá ImageData puro (RGBA, sem premultiplied-alpha)
-        // useImageData: false → dá HTMLCanvasElement (pode ter artefatos de alpha)
-        // Tentamos true primeiro para máxima fidelidade de cores
-        let psd = readPsd(buffer, {
-          useImageData: true,
+        // Sempre usamos useImageData: false para garantir que ag-psd processe
+        // todas as camadas (incluindo texto e formas vetoriais) como canvas.
+        const psd = readPsd(buffer, {
+          useImageData: false,
         }) as PsdReadResult;
 
         // Detecta modo de cor não-RGB
@@ -187,10 +186,6 @@ export default function PsdUploader({
             `⚠️ Seu PSD está em modo ${modeName}. As cores podem sair erradas. ` +
             `Para resultado perfeito: Photoshop → Imagem → Modo → Cores RGB (8 bits/canal), depois salve novamente.`
           );
-          // Tentamos parsear mesmo assim com fallback de canvas
-          psd = readPsd(buffer, {
-            useImageData: false,
-          }) as PsdReadResult;
         }
 
         setProgress("Extraindo imagens das camadas...");

@@ -55,8 +55,19 @@ export default function ExportPanel({
       const exportH = Math.round(dims.h * qualityScale);
 
       const exportCanvas = document.createElement("canvas");
+      exportCanvas.id = "temp-export-canvas";
       exportCanvas.width = exportW;
       exportCanvas.height = exportH;
+      
+      // Estiliza o canvas temporário fora da tela para que o browser
+      // renderize os frames e captureStream() funcione corretamente.
+      exportCanvas.style.position = "fixed";
+      exportCanvas.style.left = "-9999px";
+      exportCanvas.style.top = "-9999px";
+      exportCanvas.style.opacity = "0";
+      exportCanvas.style.pointerEvents = "none";
+      document.body.appendChild(exportCanvas);
+
       const ctx = exportCanvas.getContext("2d")!;
 
       // ── 2. Layer canvases come from layerPixelStore — no async loading needed ──
@@ -82,6 +93,9 @@ export default function ExportPanel({
       };
 
       recorder.onstop = () => {
+        // Limpa o canvas temporário da árvore do DOM
+        exportCanvas.remove();
+
         setStatus("encoding");
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -89,7 +103,12 @@ export default function ExportPanel({
         a.href = url;
         const baseName = doc.fileName.replace(/\.psd$/i, "");
         a.download = `${baseName}_animado.${ext}`;
+        
+        // Adiciona e remove do body para garantir o download em todos os browsers
+        document.body.appendChild(a);
         a.click();
+        a.remove();
+        
         setTimeout(() => URL.revokeObjectURL(url), 10000);
         setStatus("done");
         setProgress(100);
@@ -141,6 +160,11 @@ export default function ExportPanel({
       requestAnimationFrame(renderLoop);
     } catch (err) {
       console.error("Export error:", err);
+      // Remove o canvas se ele foi adicionado ao body antes do erro
+      try {
+        const temp = document.getElementById("temp-export-canvas");
+        if (temp) temp.remove();
+      } catch (e) {}
       setErrorMsg("Erro ao exportar. Verifique se seu browser suporta MediaRecorder.");
       setStatus("error");
     }
