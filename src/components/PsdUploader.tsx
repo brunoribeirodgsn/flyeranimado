@@ -118,7 +118,9 @@ function flattenLayers(children: PsdChild[], parentVisible = true): PsdLayer[] {
         y: child.top ?? 0,
         width: w,
         height: h,
-        opacity: (child.opacity ?? 255) / 255,
+        opacity: child.opacity !== undefined 
+          ? (child.opacity > 1 ? child.opacity / 255 : child.opacity) 
+          : 1,
         thumbnail,
         isGroup: false,
         order: result.length,
